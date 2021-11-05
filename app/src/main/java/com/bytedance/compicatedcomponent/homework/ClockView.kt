@@ -100,8 +100,10 @@ class ClockView @JvmOverloads constructor(
         drawNeedles(canvas)
 
         // todo 1: 每一秒刷新一次，让指针动起来
-        FreshThread(canvas).start()
-
+        if(freshThread == null) {
+            freshThread = FreshThread(canvas)
+            freshThread!!.start()
+        }
     }
 
     inner class FreshThread(canvas: Canvas): Thread() {
@@ -113,6 +115,8 @@ class ClockView @JvmOverloads constructor(
             }
         }
     }
+
+    private var freshThread: FreshThread? = null
 
     private fun drawDegrees(canvas: Canvas) {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
