@@ -9,8 +9,10 @@ import android.util.Log
 import android.view.MotionEvent
 import android.view.View
 import java.util.*
+import kotlin.math.acos
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlin.math.sqrt
 
 /**
  *  author : neo
@@ -200,6 +202,7 @@ class ClockView @JvmOverloads constructor(
                 degree = value * UNIT_DEGREE
                 needlePaint.color = Color.GRAY
                 pointerHeadXY = getPointerHeadXY(minutePointerLength, degree)
+               // Log.d("minute", "${value}")
             }
             POINTER_TYPE_SECOND -> {
                 degree = value * UNIT_DEGREE
@@ -247,12 +250,16 @@ class ClockView @JvmOverloads constructor(
                 when(flag) {
                     SWITCH_SECOND -> {
                         rotateValueOfSecond += (radian / UNIT_DEGREE).toInt()
+                        rotateValueOfSecond = (rotateValueOfSecond + 60) % 60
                     }
                     SWITCH_MINUTE -> {
                         rotateValueOfMinute += (radian / UNIT_DEGREE).toInt()
+                        rotateValueOfMinute = (rotateValueOfMinute + 60) % 60
+                        // Log.d("rotateValueMinute", "${rotateValueOfMinute}")
                     }
                     SWITCH_HOUR -> {
                         rotateValueOfHour +=  (radian / UNIT_DEGREE).toInt()
+                        rotateValueOfHour = (rotateValueOfHour + 60) % 60
                     }
                 }
             }
@@ -276,23 +283,23 @@ class ClockView @JvmOverloads constructor(
         var isClockwise: Boolean  = ((x1 - centerX) * (y2 - centerY) - (y1 - centerY) * (x2 - centerX)) > 0
 
         // 根据余弦定理计算旋转角的余弦值
-        var cosDegree: Double = (oa2 + ob2 - ab2) / (2 * Math.sqrt(oa2.toDouble()) * Math.sqrt(ob2.toDouble()))
+        var cosDegree: Float = (oa2 + ob2 - ab2) / (2 * sqrt(oa2) * sqrt(ob2))
 
         // 异常处理，因为算出来会有误差绝对值可能会超过一，所以需要处理一下
         if (cosDegree > 1) {
-            cosDegree = 1.0
+            cosDegree = 1.0F
         } else if (cosDegree < -1) {
-            cosDegree = -1.0
+            cosDegree = -1.0F
         }
 
         // 计算弧度
-        var radian: Double = Math.acos(cosDegree)
-
+        var radian: Float = acos(cosDegree)
+        // Log.d("radian", "${radian}")
         // 顺时针为正，逆时针为负
         if(isClockwise) {
-            return radian.toFloat()
+            return radian
         } else {
-            return -1 * radian.toFloat()
+            return -1 * radian
         }
     }
 }
