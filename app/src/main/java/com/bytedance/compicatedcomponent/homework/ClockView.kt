@@ -4,12 +4,10 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.os.*
-import android.os.SystemClock.sleep
 import android.util.AttributeSet
+import android.util.Log
+import android.view.MotionEvent
 import android.view.View
-import androidx.core.os.bundleOf
-import com.bytedance.compicatedcomponent.handler.DownloadVideoActivity
 import java.util.*
 import kotlin.math.cos
 import kotlin.math.sin
@@ -43,6 +41,10 @@ class ClockView @JvmOverloads constructor(
         private const val RIGHT_ANGLE = 90
 
         private const val UNIT_DEGREE = (6 * Math.PI / 180).toFloat() // 一个小格的度数
+
+        private const val SWITCH_HOUR = 0
+        private const val SWITCH_MINUTE = 1
+        private const val SWITCH_SECOND = 2
     }
 
     private var panelRadius = 200.0f // 表盘半径
@@ -100,13 +102,13 @@ class ClockView @JvmOverloads constructor(
         drawNeedles(canvas)
 
         // todo 1: 每一秒刷新一次，让指针动起来
-        if(freshThread == null) {
-            freshThread = FreshThread(canvas)
-            freshThread!!.start()
+        if(flushThread == null) {
+            flushThread = FlushThread(canvas)
+            flushThread!!.start()
         }
     }
 
-    inner class FreshThread(canvas: Canvas): Thread() {
+    inner class FlushThread(canvas: Canvas): Thread() {
         override fun run() {
             super.run()
             while(true) {
@@ -116,7 +118,7 @@ class ClockView @JvmOverloads constructor(
         }
     }
 
-    private var freshThread: FreshThread? = null
+    private var flushThread: FlushThread? = null
 
     private fun drawDegrees(canvas: Canvas) {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -173,13 +175,13 @@ class ClockView @JvmOverloads constructor(
         val nowMinutes: Int = now.minutes
         val nowSeconds: Int = now.seconds
         // 画秒针
-        drawPointer(canvas, POINTER_TYPE_SECOND, nowSeconds)
+        drawPointer(canvas, POINTER_TYPE_SECOND, nowSeconds + rotateValueOfSecond)
         // 画分针
         // todo 2: 画分针
-        drawPointer(canvas, POINTER_TYPE_MINUTES, nowMinutes)
+        drawPointer(canvas, POINTER_TYPE_MINUTES, nowMinutes + rotateValueOfMinute)
         // 画时针
         val part = nowMinutes / 12
-        drawPointer(canvas, POINTER_TYPE_HOURS, 5 * nowHours + part)
+        drawPointer(canvas, POINTER_TYPE_HOURS, 5 * nowHours + part + rotateValueOfHour)
     }
 
 
@@ -187,6 +189,7 @@ class ClockView @JvmOverloads constructor(
         val degree: Float
         var pointerHeadXY = FloatArray(2)
         needlePaint.strokeWidth = resultWidth * DEFAULT_DEGREE_STROKE_WIDTH
+        var value = (value + 60) % 60
         when (pointerType) {
             POINTER_TYPE_HOURS -> {
                 degree = value * UNIT_DEGREE
@@ -215,6 +218,82 @@ class ClockView @JvmOverloads constructor(
         xy[0] = centerX + pointerLength * sin(degree)
         xy[1] = centerY - pointerLength * cos(degree)
         return xy
+    }
+
+    var flag:Int = 0
+    var x1: Float = 0.0F
+    var y1: Float = 0.0F
+    var rotateValueOfSecond: Int = 0
+    var rotateValueOfMinute: Int = 0
+    var rotateValueOfHour: Int = 0
+
+    override fun onTouchEvent(event: MotionEvent?): Boolean {
+
+        when(event!!.action) {
+            MotionEvent.ACTION_DOWN -> {
+                x1 = event.getX()
+                y1 = event.getY()
+                var distance: Float = (x1 - centerX) * (x1 - centerX) + (y1 - centerY) * (y1 - centerY)
+                if(distance < hourPointerLength * hourPointerLength) {
+                    flag = SWITCH_HOUR
+                } else if(distance < minutePointerLength * minutePointerLength) {
+                    flag = SWITCH_MINUTE
+                } else {
+                    flag = SWITCH_SECOND
+                }
+            }
+            MotionEvent.ACTION_UP -> {
+                var radian: Float = angle(x1, y1, event.getX(), event.getY())
+                when(flag) {
+                    SWITCH_SECOND -> {
+                        rotateValueOfSecond += (radian / UNIT_DEGREE).toInt()
+                    }
+                    SWITCH_MINUTE -> {
+                        rotateValueOfMinute += (radian / UNIT_DEGREE).toInt()
+                    }
+                    SWITCH_HOUR -> {
+                        rotateValueOfHour +=  (radian / UNIT_DEGREE).toInt()
+                    }
+                }
+            }
+        }
+
+        return true
+    }
+
+    private fun angle(x1: Float, x2: Float, y1: Float, y2: Float): Float {
+        var dx1 = x1 - centerX
+        var dy1 = y1 - centerY
+        var dx2 = x2 - centerX
+        var dy2 = y2 - centerY
+
+        // 计算三边的平方
+        var ab2 = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)
+        var oa2 = dx1 * dx1 + dy1 * dy1;
+        var ob2 = dx2 * dx2 + dy2 * dy2;
+
+        // 根据两向量的叉乘来判断顺逆时针
+        var isClockwise: Boolean  = ((x1 - centerX) * (y2 - centerY) - (y1 - centerY) * (x2 - centerX)) > 0
+
+        // 根据余弦定理计算旋转角的余弦值
+        var cosDegree: Double = (oa2 + ob2 - ab2) / (2 * Math.sqrt(oa2.toDouble()) * Math.sqrt(ob2.toDouble()))
+
+        // 异常处理，因为算出来会有误差绝对值可能会超过一，所以需要处理一下
+        if (cosDegree > 1) {
+            cosDegree = 1.0
+        } else if (cosDegree < -1) {
+            cosDegree = -1.0
+        }
+
+        // 计算弧度
+        var radian: Double = Math.acos(cosDegree)
+
+        // 顺时针为正，逆时针为负
+        if(isClockwise) {
+            return radian.toFloat()
+        } else {
+            return -1 * radian.toFloat()
+        }
     }
 }
 
